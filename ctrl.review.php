@@ -3,59 +3,50 @@ namespace NGReview;
 
 header('Content-type: application/json');
 
-$method = 'GET';
-$id     = 0;
-
-if (isset($_REQUEST['id']) ) {
- $method = $_SERVER['REQUEST_METHOD'];
- $id     = intval($_REQUEST['id']);
-}
-
+$method     = $_SERVER['REQUEST_METHOD'];
 $controller = new ReviewsController();
 
 if ($method == 'GET') {
-    if (!$id) { header("HTTP/1.1 500 [GET] Internal Server Error [unknown product ID = $id]"); exit; }
-
-    $controller->getById($id);
+    $controller->getAll();
 }
 
-if ($method == 'POST' && $id) {
-    if (!$id) { header("HTTP/1.1 500 [POST] Internal Server Error [unknown product ID = $id]"); exit; }
-    $headers = apache_request_headers();
-//var_dump($headers);
-    $token    = $headers['authorization'];
+if ($method == 'POST') {
     $postdata = file_get_contents("php://input");
-    $request  = json_decode($postdata);
+    $data     = json_decode($postdata);
 
-    $controller->add($id, $token, $request);
+    $controller->add($data);
 }
 
 
 class ReviewsController {
     private $model;
-    private $authModel;
 
     public function __construct() {
         require_once('models/review.php');
-        require_once('models/auth.php');
 
         $this->model     = new ReviewModel();
-        $this->authModel = new AuthModel();
     }
 
-    public function add($productId, $token, $data) {
-        $userId = $this->authModel->getUserID($token);
+    public function add($data) {
 
-        if ($userId == false) { echo json_encode(array('success' => false, 'message' => 'Incorrect username or password')); exit; }
+        if (!filter_var($data->usermail, FILTER_VALIDATE_EMAIL)) {
+          header('HTTP/1.1 500 ERROR: Incorrect email');
+          exit;
+        }
 
-        $reviewId = $this->model->add($productId, $userId, $data);
+        if (empty($data->username)) {
+          header('HTTP/1.1 500 ERROR: Empty user name');
+          exit;
+        }
 
-        echo json_encode(array('review_id' => $reviewId));
+        $reviewID = $this->model->add($data);
+
+        echo json_encode(array('review_id' => $reviewID));
         exit;
     }
 
-    public function getById($id) {
-        $reviews = $this->model->getById($id);
+    public function getAll() {
+        $reviews = $this->model->getAll();
 
         echo json_encode($reviews);
         exit;
